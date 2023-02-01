@@ -12,14 +12,13 @@ package openid
 
 import (
 	"encoding/json"
-	"golang.org/x/oauth2"
-	"io/ioutil"
-	"net/http"
-
 	"github.com/vouch/vouch-proxy/pkg/cfg"
 	"github.com/vouch/vouch-proxy/pkg/providers/common"
 	"github.com/vouch/vouch-proxy/pkg/structs"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
+	"io/ioutil"
+	"net/http"
 )
 
 // Provider provider specific functions
@@ -39,6 +38,7 @@ func (Provider) GetUserInfo(r *http.Request, user *structs.User, customClaims *s
 		return err
 	}
 	userinfo, err := client.Get(cfg.GenOAuth.UserInfoURL)
+
 	if err != nil {
 		return err
 	}
@@ -56,6 +56,29 @@ func (Provider) GetUserInfo(r *http.Request, user *structs.User, customClaims *s
 	if err = json.Unmarshal(data, user); err != nil {
 		log.Error(err)
 		return err
+	}
+	var f interface{}
+	err = json.Unmarshal(data, &f)
+	if err != nil {
+		log.Error("Error unmarshaling claims")
+		return err
+	}
+	if cfg.Cfg.TeamWhiteListClaim != "" {
+		log.Infof("TeamWhiteListClaim is %+v", cfg.Cfg.TeamWhiteListClaim)
+		m := f.(map[string]interface{})
+		for k := range m {
+			log.Infof("checking claim %s", k)
+			if k == cfg.Cfg.TeamWhiteListClaim {
+				/*for _, membership := range m[k].([]interface{}) {
+					user.TeamMemberships = append(user.TeamMemberships, membership.(string))
+				}*/
+				log.Infof("claim values of %+v is %+v, converted to %+v", k, m[k], m[k].(string))
+				user.TeamMemberships = append(user.TeamMemberships, m[k].(string))
+				break
+			}
+		}
+		log.Infof("teammemberships : %+v", user.TeamMemberships)
+		log.Debug("memberof attr checked")
 	}
 	user.PrepareUserData()
 	return nil
